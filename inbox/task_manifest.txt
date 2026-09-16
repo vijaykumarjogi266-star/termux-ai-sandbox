@@ -1,0 +1,1 @@
+Build a Python script called data_processor.py that takes a list of numbers, calculates the average, and prints it. It must only create this one file and must not touch any protected paths.
