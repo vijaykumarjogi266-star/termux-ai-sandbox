@@ -21,7 +21,7 @@ class Brain:
 
     def __init__(
         self,
-        workspace_dir: str = "/root/sandbox",
+        workspace_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         inbox_dir: Optional[str] = None,
         approval_engine: Optional[ApprovalEngine] = None,
     ):

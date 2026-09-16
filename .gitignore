@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local agent configuration
+.agents/
+
+# Separate Algo Lab repository
+/algopro/
+
+# Local Factory audit history
+/audit.jsonl

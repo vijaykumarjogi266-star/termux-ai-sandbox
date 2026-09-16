@@ -28,7 +28,7 @@ class PolicyViolationError(Exception):
 class Orchestrator:
     def __init__(
         self,
-        workspace_dir: str = "/root/sandbox",
+        workspace_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         inbox_dir: Optional[str] = None,
         approval_engine: Optional[ApprovalEngine] = None,
         max_heal_attempts: int = 1,
@@ -57,28 +57,26 @@ class Orchestrator:
         # Otherwise split by line
         return [line.strip() for line in stripped.splitlines() if line.strip()]
 
-    def execute_agy(self, prompt: str) -> subprocess.CompletedProcess:
+    def execute_agy(self, prompt: str, timeout: Optional[int] = None) -> subprocess.CompletedProcess:
         """
         Execute agy command via subprocess.run and capture output.
         Command format: agy --print --prompt "[Step Text]"
+        Supports execution timeout and permission flag fallback.
         """
+        run_kwargs = {
+            "capture_output": True,
+            "text": True,
+            "cwd": self.workspace_dir,
+            "check": False,
+        }
+        if timeout is not None:
+            run_kwargs["timeout"] = timeout
+
         cmd = ["agy", "--print", "--prompt", prompt]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            cwd=self.workspace_dir,
-            check=False,
-        )
-        if result.returncode != 0 and "--print took \"--prompt\"" in (result.stderr + result.stdout):
+        result = subprocess.run(cmd, **run_kwargs)
+        if result.returncode != 0 and '--print took "--prompt"' in (result.stderr + result.stdout):
             cmd = ["agy", "--dangerously-skip-permissions", f"--prompt={prompt}"]
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                cwd=self.workspace_dir,
-                check=False,
-            )
+            result = subprocess.run(cmd, **run_kwargs)
         return result
 
     def get_changed_files(self) -> List[str]:
@@ -108,49 +106,63 @@ class Orchestrator:
             pass
         return []
 
-    def _materialize_code_output(self, step_text: str, result: subprocess.CompletedProcess):
+    def materialize_code_output(self, step_text: str, result: subprocess.CompletedProcess) -> Optional[str]:
+        """
+        Extract generated code from markdown code blocks in result.stdout
+        and write to target file if it does not yet exist.
+        """
         import re
-        match = re.search(r'(?:script called|file called|file named|script named|into)\s+([a-zA-Z0-9_\-]+\.py)', step_text, re.IGNORECASE)
-        if not match:
-            match = re.search(r'([a-zA-Z0-9_\-]+\.py)', step_text)
+        target_filename = None
 
+        # Pattern 1: target file explicit keywords
+        match = re.search(
+            r'(?:script called|file called|file named|script named|into|create|scaffold|generate)\s+([a-zA-Z0-9_\-./]+\.[a-zA-Z0-9]+)',
+            step_text,
+            re.IGNORECASE,
+        )
         if match:
             target_filename = match.group(1)
-            target_path = os.path.join(self.workspace_dir, target_filename)
-            if not os.path.exists(target_path):
-                code_match = re.search(r'```(?:python)?\s*\n(.*?)\n```', result.stdout, re.DOTALL)
-                if code_match:
-                    code_content = code_match.group(1).strip()
-                elif "data_processor.py" in target_filename:
-                    code_content = (
-                        "import sys\n\n\n"
-                        "def calculate_average(numbers):\n"
-                        "    if not numbers:\n"
-                        "        return 0.0\n"
-                        "    return sum(numbers) / len(numbers)\n\n\n"
-                        "def main():\n"
-                        "    numbers = [10, 20, 30, 40, 50]\n"
-                        "    avg = calculate_average(numbers)\n"
-                        "    print(f'Numbers: {numbers}')\n"
-                        "    print(f'Average: {avg}')\n\n\n"
-                        "if __name__ == '__main__':\n"
-                        "    main()\n"
-                    )
-                else:
-                    code_content = None
+        else:
+            # Pattern 2: any python or script file in step
+            match = re.search(r'([a-zA-Z0-9_\-./]+\.(?:py|sh|json|yaml|yml|md|txt))', step_text)
+            if match:
+                target_filename = match.group(1)
 
-                if code_content:
-                    with open(target_path, "w", encoding="utf-8") as f:
-                        f.write(code_content + "\n")
-                    print(f"Materialized generated code into {target_path}")
+        if not target_filename:
+            return None
 
-    def execute_step(self, step_text: str) -> bool:
+        # Clean target filename
+        target_filename = target_filename.strip("'\"`")
+        target_path = os.path.join(self.workspace_dir, target_filename)
+
+        if not os.path.exists(target_path):
+            code_match = re.search(r'```(?:[a-zA-Z0-9_\-]+)?\s*\n(.*?)\n```', result.stdout, re.DOTALL)
+            code_content = code_match.group(1).strip() if code_match else None
+
+            # Fallback if markdown block wasn't used but stdout looks like code
+            if not code_content and ("def " in result.stdout or "import " in result.stdout):
+                code_content = result.stdout.strip()
+
+            if code_content:
+                os.makedirs(os.path.dirname(os.path.abspath(target_path)), exist_ok=True)
+                with open(target_path, "w", encoding="utf-8") as f:
+                    f.write(code_content + "\n")
+                print(f"Materialized generated code into {target_path}")
+                return target_path
+
+        return None
+
+    def _materialize_code_output(self, step_text: str, result: subprocess.CompletedProcess):
+        """Backward compatibility alias."""
+        return self.materialize_code_output(step_text, result)
+
+    def execute_step(self, step_text: str, timeout: Optional[int] = None) -> bool:
         """
         Execute a single step with error capturing and automatic self-healing.
         Validates governance policy before completing the step.
         """
         print(f"Executing step: {step_text}")
-        result = self.execute_agy(step_text)
+        result = self.execute_agy(step_text, timeout=timeout)
 
         # Check for failure and trigger self-healing
         if result.returncode != 0:
@@ -164,7 +176,7 @@ class Orchestrator:
                     f"Please self-heal and resolve this error to complete the original step: {step_text}"
                 )
                 print(f"Self-heal attempt {attempt}: executing healing prompt...")
-                heal_result = self.execute_agy(heal_prompt)
+                heal_result = self.execute_agy(heal_prompt, timeout=timeout)
                 if heal_result.returncode == 0:
                     healed = True
                     print(f"Self-heal attempt {attempt} succeeded.")

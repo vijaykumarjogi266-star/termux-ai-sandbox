@@ -1,3 +1,4 @@
+import os
 import unittest
 from agent.policy import ApprovalEngine, PolicyDecision
 
@@ -84,6 +85,36 @@ class TestApprovalEngine(unittest.TestCase):
             PolicyDecision.REJECT
         )
 
+    def test_glob_pattern_matching(self):
+        engine = ApprovalEngine(allowed_paths=["*.py", "docs/*"], protected_paths=["*.env"])
+        self.assertEqual(engine.evaluate_changes(["helper.py"]), PolicyDecision.AUTO_APPROVE)
+        self.assertEqual(engine.evaluate_changes(["docs/readme.txt"]), PolicyDecision.AUTO_APPROVE)
+        self.assertEqual(engine.evaluate_changes(["secret.env"]), PolicyDecision.REJECT)
+        self.assertEqual(engine.evaluate_changes(["random.bin"]), PolicyDecision.REJECT)
+
+    def test_dynamic_path_addition(self):
+        engine = ApprovalEngine(allowed_paths=["sandbox/"], protected_paths=[".env"])
+        self.assertEqual(engine.evaluate_changes(["custom.py"]), PolicyDecision.REJECT)
+        engine.add_allowed_path("custom.py")
+        self.assertEqual(engine.evaluate_changes(["custom.py"]), PolicyDecision.AUTO_APPROVE)
+        engine.add_protected_path("custom.py")
+        self.assertEqual(engine.evaluate_changes(["custom.py"]), PolicyDecision.REJECT)
+
+    def test_json_config_roundtrip(self):
+        import tempfile
+        engine = ApprovalEngine(allowed_paths=["custom/"], protected_paths=["custom/lock"])
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tf:
+            cfg_path = tf.name
+        try:
+            engine.save_config(cfg_path)
+            loaded = ApprovalEngine.load_from_config(cfg_path)
+            self.assertEqual(loaded.allowed_paths, ["custom/"])
+            self.assertEqual(loaded.protected_paths, ["custom/lock"])
+        finally:
+            if os.path.exists(cfg_path):
+                os.remove(cfg_path)
+
 
 if __name__ == "__main__":
     unittest.main()
+

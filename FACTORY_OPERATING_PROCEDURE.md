@@ -18,19 +18,31 @@ python agent/factory.py [OPTIONS] (TASK | -p "PROMPT" | -f PATH_TO_FILE)
 | `task` | (positional) | Task prompt string or path to task file | `None` |
 | `--prompt` | `-p` | Direct task prompt string (mutually exclusive with `-f`) | `None` |
 | `--file` | `-f` | Path to a `.txt` task file (mutually exclusive with `-p`) | `None` |
-| `--workspace` | `-w` | Root workspace path | `/root/sandbox` |
+| `--workspace` | `-w` | Root workspace path | `<repository-root>` |
 | `--audit-file` | `-a` | Path to the output JSONL audit log | `<workspace>/audit.jsonl` |
 | `--timeout` | `-t` | Optional execution timeout in seconds | `None` |
+| `--report` | (none) | Display execution statistics & audit report from audit.jsonl | `False` |
+| `--doctor` | (none) | Perform diagnostic health check (git, agy, paths, policy) | `False` |
+| `--allow` | (none) | Comma-separated paths/globs to temporarily allow | `None` |
 
 ### 2.3 Example Commands
 - **Executing an inbox task file**:
   ```bash
   python agent/factory.py inbox/task_manifest.txt
   ```
-- **Executing a prompt directly**:
+- **Executing a prompt directly with custom allowed paths**:
   ```bash
-  python agent/factory.py -p "Step 1: Create data_processor.py"
+  python agent/factory.py -p "Step 1: Create my_tool.py" --allow "my_tool.py"
   ```
+- **Running environment diagnostics**:
+  ```bash
+  python agent/factory.py --doctor
+  ```
+- **Displaying audit summary report**:
+  ```bash
+  python agent/factory.py --report
+  ```
+
 
 ---
 

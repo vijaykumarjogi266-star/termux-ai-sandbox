@@ -194,6 +194,34 @@ class TestFactory(unittest.TestCase):
         event_types = [e["event_type"] for e in events]
         self.assertIn("timeout_expired", event_types)
 
+    def test_generate_audit_report(self):
+        runner = FactoryRunner(
+            workspace_dir=self.workspace_dir,
+            audit_file=self.audit_file,
+            approval_engine=self.approval_engine,
+            orchestrator=self.orchestrator,
+        )
+        runner.audit_logger.log("task_started", {"prompt": "Test"})
+        runner.audit_logger.log("task_finished", {"state": "PASS"})
+
+        report = runner.generate_audit_report()
+        self.assertEqual(report["tasks_started"], 1)
+        self.assertEqual(report["tasks_finished"], 1)
+        self.assertEqual(report["outcomes"]["PASS"], 1)
+
+    def test_run_doctor(self):
+        runner = FactoryRunner(
+            workspace_dir=self.workspace_dir,
+            audit_file=self.audit_file,
+            approval_engine=self.approval_engine,
+            orchestrator=self.orchestrator,
+        )
+        doctor = runner.run_doctor()
+        self.assertTrue(doctor["workspace_exists"])
+        self.assertIn("git_initialized", doctor)
+        self.assertIn("allowed_paths_count", doctor)
+
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -58,7 +58,7 @@ class FactoryRunner:
 
     def __init__(
         self,
-        workspace_dir: str = "/root/sandbox",
+        workspace_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         audit_file: Optional[str] = None,
         approval_engine: Optional[ApprovalEngine] = None,
         orchestrator: Optional[Orchestrator] = None,
@@ -68,7 +68,16 @@ class FactoryRunner:
         self.workspace_dir = workspace_dir
         self.audit_file = audit_file or os.path.join(workspace_dir, "audit.jsonl")
         self.audit_logger = AuditLogger(self.audit_file)
-        self.approval_engine = approval_engine or ApprovalEngine()
+
+        # Auto-load policy config if present
+        policy_config = os.path.join(workspace_dir, "factory_policy.json")
+        if approval_engine is not None:
+            self.approval_engine = approval_engine
+        elif os.path.exists(policy_config):
+            self.approval_engine = ApprovalEngine.load_from_config(policy_config)
+        else:
+            self.approval_engine = ApprovalEngine()
+
         self.orchestrator = orchestrator or Orchestrator(
             workspace_dir=self.workspace_dir,
             approval_engine=self.approval_engine,
@@ -206,8 +215,8 @@ class FactoryRunner:
 
                 # Check timeout if configured
                 try:
-                    # Execute via Orchestrator
-                    result = self.orchestrator.execute_agy(step)
+                    # Execute via Orchestrator with configured timeout
+                    result = self.orchestrator.execute_agy(step, timeout=self.timeout_seconds)
                 except subprocess.TimeoutExpired as e:
                     self.audit_logger.log("timeout_expired", {"step_index": idx, "details": str(e)})
                     self.audit_logger.log("task_finished", {"state": FactoryState.TIMEOUT.value})
@@ -222,13 +231,16 @@ class FactoryRunner:
                         f"The previous step failed with error:\n{error_msg}\n"
                         f"Please self-heal and resolve this error to complete the original step: {step}"
                     )
-                    heal_result = self.orchestrator.execute_agy(heal_prompt)
+                    heal_result = self.orchestrator.execute_agy(heal_prompt, timeout=self.timeout_seconds)
                     if heal_result.returncode != 0:
                         self.audit_logger.log("self_heal_failed", {"step_index": idx, "error": heal_result.stderr})
                         self.audit_logger.log("task_finished", {"state": FactoryState.FAILED.value})
                         return FactoryState.FAILED
 
                     self.audit_logger.log("self_heal_succeeded", {"step_index": idx})
+
+                # Materialize code output if step requested creating a script and file not yet on disk
+                self.orchestrator.materialize_code_output(step, result)
 
                 # 3. Governance Evaluation
                 changed_files = self.orchestrator.get_changed_files()
@@ -271,6 +283,97 @@ class FactoryRunner:
             self.audit_logger.log("task_finished", {"state": FactoryState.FAILED.value})
             return FactoryState.FAILED
 
+    def generate_audit_report(self) -> dict:
+        """
+        Summarize events from the JSONL audit log.
+        """
+        stats = {
+            "total_events": 0,
+            "tasks_started": 0,
+            "tasks_finished": 0,
+            "outcomes": {
+                "PASS": 0,
+                "REJECT": 0,
+                "HUMAN_REQUIRED": 0,
+                "TIMEOUT": 0,
+                "FAILED": 0,
+            },
+            "recent_events": [],
+        }
+
+        if os.path.exists(self.audit_file):
+            try:
+                with open(self.audit_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            entry = json.loads(line)
+                            stats["total_events"] += 1
+                            event_type = entry.get("event_type")
+                            details = entry.get("details", {})
+                            if event_type == "task_started":
+                                stats["tasks_started"] += 1
+                            elif event_type == "task_finished":
+                                stats["tasks_finished"] += 1
+                                state = details.get("state")
+                                if state in stats["outcomes"]:
+                                    stats["outcomes"][state] += 1
+                            stats["recent_events"].append(entry)
+                        except json.JSONDecodeError:
+                            continue
+                stats["recent_events"] = stats["recent_events"][-10:]
+            except Exception as e:
+                stats["error"] = str(e)
+
+        return stats
+
+    def run_doctor(self) -> dict:
+        """
+        Diagnostic health check for the AI Project Factory environment.
+        """
+        checks = {}
+
+        # 1. Workspace check
+        checks["workspace_exists"] = os.path.isdir(self.workspace_dir)
+
+        # 2. Git check
+        try:
+            res = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=self.workspace_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            checks["git_initialized"] = (res.returncode == 0)
+            checks["git_branch"] = res.stdout.strip() if res.returncode == 0 else "unknown"
+        except Exception:
+            checks["git_initialized"] = False
+            checks["git_branch"] = "error"
+
+        # 3. agy executable check
+        agy_found = False
+        for path in ["agy", "/root/.local/bin/agy", "/usr/bin/agy"]:
+            try:
+                subprocess.run([path, "--version"], capture_output=True, check=False)
+                agy_found = True
+                checks["agy_path"] = path
+                break
+            except (FileNotFoundError, PermissionError):
+                pass
+        checks["agy_available"] = agy_found
+
+        # 4. Governance configuration
+        checks["allowed_paths_count"] = len(self.approval_engine.allowed_paths)
+        checks["protected_paths_count"] = len(self.approval_engine.protected_paths)
+
+        # 5. Audit log check
+        checks["audit_log_present"] = os.path.exists(self.audit_file)
+
+        return checks
+
 
 def main():
     parser = argparse.ArgumentParser(description="AI Project Factory MVP Entry Point")
@@ -284,7 +387,7 @@ def main():
     parser.add_argument("-f", "--file", help="Path to task instruction file")
 
     parser.add_argument(
-        "-w", "--workspace", default="/root/sandbox", help="Path to workspace directory"
+        "-w", "--workspace", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))), help="Path to workspace directory"
     )
     parser.add_argument(
         "-a", "--audit-file", default=None, help="Path to JSONL audit log file"
@@ -292,8 +395,47 @@ def main():
     parser.add_argument(
         "-t", "--timeout", type=int, default=None, help="Timeout in seconds"
     )
+    parser.add_argument(
+        "--report", "--status", dest="report", action="store_true", help="Display summary of audit log"
+    )
+    parser.add_argument(
+        "--doctor", action="store_true", help="Run factory diagnostic health check"
+    )
+    parser.add_argument(
+        "--allow", help="Comma-separated list of paths to temporarily allow"
+    )
 
     args = parser.parse_args()
+
+    runner = FactoryRunner(
+        workspace_dir=args.workspace,
+        audit_file=args.audit_file,
+        timeout_seconds=args.timeout,
+    )
+
+    if args.allow:
+        for p in args.allow.split(","):
+            p = p.strip()
+            if p:
+                runner.approval_engine.add_allowed_path(p)
+
+    if args.doctor:
+        doc = runner.run_doctor()
+        print("=== AI Project Factory Health Check ===")
+        for k, v in doc.items():
+            print(f"  {k}: {v}")
+        sys.exit(0)
+
+    if args.report:
+        report = runner.generate_audit_report()
+        print("=== AI Project Factory Audit Report ===")
+        print(f"Total Audit Events: {report['total_events']}")
+        print(f"Tasks Started:      {report['tasks_started']}")
+        print(f"Tasks Finished:     {report['tasks_finished']}")
+        print("Outcomes:")
+        for outcome, count in report["outcomes"].items():
+            print(f"  {outcome:<15}: {count}")
+        sys.exit(0)
 
     prompt = args.prompt
     file_path = args.file
@@ -306,12 +448,6 @@ def main():
                 prompt = args.task
         else:
             parser.error("Must provide a task prompt or file path (e.g. -p, -f, or positional argument).")
-
-    runner = FactoryRunner(
-        workspace_dir=args.workspace,
-        audit_file=args.audit_file,
-        timeout_seconds=args.timeout,
-    )
 
     state = runner.run_task(prompt=prompt, file_path=file_path)
 

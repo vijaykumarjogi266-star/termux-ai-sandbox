@@ -20,7 +20,7 @@ from agent.policy import ApprovalEngine, PolicyDecision
 from agent.factory import FactoryRunner, FactoryState, AuditLogger
 
 
-def run_sandbox_proof(workspace_dir: str = "/root/sandbox") -> Dict[str, Any]:
+def run_sandbox_proof(workspace_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) -> Dict[str, Any]:
     print("==================================================")
     print("       STARTING PHASE C: SANDBOX PROOF")
     print("==================================================")

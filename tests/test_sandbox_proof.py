@@ -11,14 +11,15 @@ from agent.sandbox_proof import run_sandbox_proof
 class TestSandboxProof(unittest.TestCase):
     def test_run_sandbox_proof(self):
         # Run the full automated proof
-        summary = run_sandbox_proof("/root/sandbox")
+        workspace_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        summary = run_sandbox_proof(workspace_dir)
         self.assertEqual(summary["status"], "SUCCESS")
         self.assertEqual(summary["c2_decision"], "AUTO_APPROVE")
         self.assertEqual(summary["c3_decision"], "REJECT")
         self.assertTrue(summary["protected_intact"])
 
         # Check audit log contains rejection event
-        audit_file = "/root/sandbox/audit.jsonl"
+        audit_file = os.path.join(workspace_dir, "audit.jsonl")
         self.assertTrue(os.path.exists(audit_file))
         rejection_found = False
         with open(audit_file, "r", encoding="utf-8") as f:

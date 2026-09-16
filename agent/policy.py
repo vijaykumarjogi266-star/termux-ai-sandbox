@@ -5,7 +5,9 @@ Provides deterministic evaluation of proposed file changes.
 
 from enum import Enum
 import os
-from typing import List, Optional
+import fnmatch
+import json
+from typing import List, Optional, Dict, Any
 
 
 class PolicyDecision(Enum):
@@ -84,6 +86,10 @@ class ApprovalEngine:
             if norm_file.startswith(norm_rule + '/'):
                 return True
 
+        # Glob pattern match (e.g. *.py, src/*)
+        if fnmatch.fnmatch(norm_file, norm_rule) or fnmatch.fnmatch(os.path.basename(norm_file), norm_rule):
+            return True
+
         return False
 
     def is_protected(self, file_path: str) -> bool:
@@ -91,6 +97,16 @@ class ApprovalEngine:
 
     def is_allowed(self, file_path: str) -> bool:
         return any(self._is_path_matching(file_path, rule) for rule in self.allowed_paths)
+
+    def add_allowed_path(self, path: str):
+        norm = self._normalize(path)
+        if norm and norm not in self.allowed_paths:
+            self.allowed_paths.append(norm)
+
+    def add_protected_path(self, path: str):
+        norm = self._normalize(path)
+        if norm and norm not in self.protected_paths:
+            self.protected_paths.append(norm)
 
     def implies_infra_or_production(self, file_path: str) -> bool:
         lower_path = self._normalize(file_path).lower()
@@ -119,3 +135,31 @@ class ApprovalEngine:
 
         # Rule 3: Otherwise -> AUTO_APPROVE
         return PolicyDecision.AUTO_APPROVE
+
+    @classmethod
+    def load_from_config(cls, config_path: str) -> "ApprovalEngine":
+        """
+        Load policy configuration from a JSON file.
+        """
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return cls(
+                allowed_paths=data.get("allowed_paths"),
+                protected_paths=data.get("protected_paths"),
+                infra_indicators=data.get("infra_indicators"),
+            )
+        return cls()
+
+    def save_config(self, config_path: str):
+        """
+        Persist policy configuration to a JSON file.
+        """
+        data = {
+            "allowed_paths": self.allowed_paths,
+            "protected_paths": self.protected_paths,
+            "infra_indicators": self.infra_indicators,
+        }
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
