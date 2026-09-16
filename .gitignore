@@ -2,11 +2,15 @@
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyd
 
 # Virtual environments
 .venv/
 venv/
 env/
+
+# Test caches
+.pytest_cache/
 
 # Local agent configuration
 .agents/
@@ -16,3 +20,9 @@ env/
 
 # Local Factory audit history
 /audit.jsonl
+
+# Keys, certs, tarballs, and environment variables
+*.key
+*.pem
+*.tar.gz
+*.env
