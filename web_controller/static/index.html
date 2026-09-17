@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AGY Web Controller</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="logo-area">
+        <span class="logo-icon">⚡</span>
+        <h1>AGY Web Controller</h1>
+        <span class="badge badge-subtle">Scaffold</span>
+      </div>
+      <div class="header-status">
+        <span id="connection-status" class="dot dot-green"></span>
+        <span id="connection-text">Connected</span>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <!-- Controller Input Card -->
+      <section class="card input-card">
+        <div class="card-header">
+          <h2>Task Instructions</h2>
+          <div class="options-bar">
+            <label for="model-select" class="input-label">Model:</label>
+            <select id="model-select" class="select-input">
+              <option value="">Default (CLI Config)</option>
+              <option value="gemini-3.8-flash-high">Gemini 3.8 Flash (High)</option>
+              <option value="gemini-3.8-flash-medium">Gemini 3.8 Flash (Medium)</option>
+              <option value="gemini-3.7-flash-high">Gemini 3.7 Flash (High)</option>
+              <option value="gemini-3.1-pro-high">Gemini 3.1 Pro (High)</option>
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="prompt-container">
+          <textarea
+            id="prompt-input"
+            class="prompt-textarea"
+            rows="5"
+            placeholder="Enter instruction or prompt for AGY CLI... (e.g. 'Print system architecture summary' or 'List files in workspace')"
+          ></textarea>
+          <div class="prompt-footer">
+            <span class="tip">Tip: Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to launch</span>
+            <span id="char-count" class="char-count">0 characters</span>
+          </div>
+        </div>
+
+        <div class="action-bar">
+          <button id="start-btn" class="btn btn-primary">
+            <span class="btn-icon">▶</span>
+            <span class="btn-text">Start Task</span>
+          </button>
+          <button id="stop-btn" class="btn btn-danger" disabled>
+            <span class="btn-icon">⏹</span>
+            <span class="btn-text">Stop Task</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Controller Status & Output Card -->
+      <section class="card output-card">
+        <div class="card-header">
+          <div class="status-summary">
+            <h2>Execution Output</h2>
+            <div id="status-badge" class="status-badge status-idle">
+              <span class="status-dot"></span>
+              <span id="status-label">Idle</span>
+            </div>
+          </div>
+          <div class="metadata-bar">
+            <span class="meta-item">Task ID: <strong id="meta-task-id">—</strong></span>
+            <span class="meta-item">Duration: <strong id="meta-duration">0.0s</strong></span>
+            <span class="meta-item">Exit Code: <strong id="meta-exit-code">—</strong></span>
+          </div>
+        </div>
+
+        <div class="output-toolbar">
+          <label class="checkbox-label">
+            <input type="checkbox" id="autoscroll-toggle" checked />
+            <span>Auto-scroll</span>
+          </label>
+          <div class="toolbar-actions">
+            <button id="copy-btn" class="btn btn-ghost" title="Copy output">Copy</button>
+            <button id="clear-btn" class="btn btn-ghost" title="Clear output display">Clear</button>
+          </div>
+        </div>
+
+        <div class="terminal-wrapper">
+          <pre id="output-console" class="terminal-body"><code>Waiting for task to be initiated...</code></pre>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span>AGY CLI Web Controller Scaffold &bull; Safe execution environment</span>
+      <span id="server-info" class="server-info">Target: workspace/</span>
+    </footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
