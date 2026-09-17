@@ -1,106 +1,230 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AGY Web Controller</title>
+  <title>Antigravity AI Studio</title>
   <link rel="stylesheet" href="/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="app-container">
-    <header class="app-header">
-      <div class="logo-area">
-        <span class="logo-icon">⚡</span>
-        <h1>AGY Web Controller</h1>
-        <span class="badge badge-subtle">Scaffold</span>
+  <div class="app-layout">
+    
+    <!-- Top Navigation Bar -->
+    <header class="navbar">
+      <div class="navbar-brand">
+        <span class="brand-icon">⚡</span>
+        <div class="brand-title">
+          <h1>Antigravity AI Studio</h1>
+          <span class="brand-subtitle">Autonomous Development Environment</span>
+        </div>
       </div>
-      <div class="header-status">
-        <span id="connection-status" class="dot dot-green"></span>
-        <span id="connection-text">Connected</span>
+      <div class="navbar-actions">
+        <button id="theme-toggle" class="btn btn-icon-only" title="Toggle Theme">
+          <span class="theme-icon">🌙</span>
+        </button>
+        <div class="connection-badge">
+          <span id="connection-status" class="status-dot dot-green"></span>
+          <span id="connection-text">Connected</span>
+        </div>
       </div>
     </header>
 
-    <main class="main-content">
-      <!-- Controller Input Card -->
-      <section class="card input-card">
-        <div class="card-header">
-          <h2>Task Instructions</h2>
-          <div class="options-bar">
-            <label for="model-select" class="input-label">Model:</label>
-            <select id="model-select" class="select-input">
-              <option value="">Default (CLI Config)</option>
+    <!-- Main Workspace Container -->
+    <div class="workspace-container">
+
+      <!-- Left Sidebar: Controls & Presets -->
+      <aside class="sidebar">
+        <div class="sidebar-section">
+          <h3 class="sidebar-heading">Model Configuration</h3>
+          
+          <div class="form-group">
+            <label for="model-select" class="form-label">Model Provider</label>
+            <select id="model-select" class="select-control">
+              <option value="">Default (Gemini 3.8 Flash High)</option>
               <option value="gemini-3.8-flash-high">Gemini 3.8 Flash (High)</option>
               <option value="gemini-3.8-flash-medium">Gemini 3.8 Flash (Medium)</option>
               <option value="gemini-3.7-flash-high">Gemini 3.7 Flash (High)</option>
               <option value="gemini-3.1-pro-high">Gemini 3.1 Pro (High)</option>
               <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+              <option value="gpt-oss-120b-medium">GPT-OSS 120B</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="mode-select" class="form-label">Execution Mode</label>
+            <select id="mode-select" class="select-control">
+              <option value="accept-edits">Accept Edits (Autonomous Code Application)</option>
+              <option value="plan">Plan Mode (Architectural Review Only)</option>
             </select>
           </div>
         </div>
 
-        <div class="prompt-container">
-          <textarea
-            id="prompt-input"
-            class="prompt-textarea"
-            rows="5"
-            placeholder="Enter instruction or prompt for AGY CLI... (e.g. 'Print system architecture summary' or 'List files in workspace')"
-          ></textarea>
-          <div class="prompt-footer">
-            <span class="tip">Tip: Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to launch</span>
-            <span id="char-count" class="char-count">0 characters</span>
+        <!-- Quick AI Task Templates -->
+        <div class="sidebar-section">
+          <h3 class="sidebar-heading">Quick AI Presets</h3>
+          <div class="preset-grid">
+            <button class="preset-chip" data-prompt="python agent/factory.py --doctor">
+              <span class="chip-icon">🩺</span>
+              <span class="chip-label">Run Doctor Check</span>
+            </button>
+            <button class="preset-chip" data-prompt="pytest -q">
+              <span class="chip-icon">🧪</span>
+              <span class="chip-label">Execute Pytest Suite</span>
+            </button>
+            <button class="preset-chip" data-prompt="Create a production FastAPI health check endpoint in main.py with unit tests">
+              <span class="chip-icon">🏗️</span>
+              <span class="chip-label">Scaffold FastAPI Endpoint</span>
+            </button>
+            <button class="preset-chip" data-prompt="Audit all file changes against governance policy and report decisions">
+              <span class="chip-icon">🛡️</span>
+              <span class="chip-label">Audit Governance Policy</span>
+            </button>
+            <button class="preset-chip" data-prompt="./sync_to_oracle.sh --sync">
+              <span class="chip-icon">🔄</span>
+              <span class="chip-label">Sync to Cloud Host</span>
+            </button>
           </div>
         </div>
 
-        <div class="action-bar">
-          <button id="start-btn" class="btn btn-primary">
-            <span class="btn-icon">▶</span>
-            <span class="btn-text">Start Task</span>
-          </button>
-          <button id="stop-btn" class="btn btn-danger" disabled>
-            <span class="btn-icon">⏹</span>
-            <span class="btn-text">Stop Task</span>
-          </button>
+        <div class="sidebar-footer">
+          <span id="server-info" class="footer-meta">Workspace: termux-ai-sandbox/</span>
         </div>
-      </section>
+      </aside>
 
-      <!-- Controller Status & Output Card -->
-      <section class="card output-card">
-        <div class="card-header">
-          <div class="status-summary">
-            <h2>Execution Output</h2>
-            <div id="status-badge" class="status-badge status-idle">
-              <span class="status-dot"></span>
-              <span id="status-label">Idle</span>
+      <!-- Center Main Content -->
+      <main class="main-stage">
+        
+        <!-- Multi-Format Task Input Card -->
+        <section class="card input-card">
+          <div class="card-header">
+            <div class="tab-list" role="tablist">
+              <button class="tab-button active" data-tab="prompt-tab">
+                <span class="tab-icon">💬</span> Prompt Instruction
+              </button>
+              <button class="tab-button" data-tab="file-tab">
+                <span class="tab-icon">📁</span> Upload Task File
+              </button>
+              <button class="tab-button" data-tab="json-tab">
+                <span class="tab-icon">🧩</span> Manifest / Code Block
+              </button>
             </div>
           </div>
-          <div class="metadata-bar">
-            <span class="meta-item">Task ID: <strong id="meta-task-id">—</strong></span>
-            <span class="meta-item">Duration: <strong id="meta-duration">0.0s</strong></span>
-            <span class="meta-item">Exit Code: <strong id="meta-exit-code">—</strong></span>
+
+          <div class="card-body">
+            
+            <!-- Tab 1: Text Prompt Input -->
+            <div id="prompt-tab" class="tab-content active">
+              <div class="drop-zone" id="drop-zone">
+                <textarea
+                  id="prompt-input"
+                  class="prompt-textarea"
+                  rows="6"
+                  placeholder="Ask the AI agent to build, refactor, or test something...&#10;e.g. 'Build a user authentication helper with password hashing and tests in sandbox/auth.py'"
+                ></textarea>
+                <div class="drop-zone-overlay" id="drop-zone-overlay">
+                  <span class="overlay-icon">📥</span>
+                  <span>Drop file here to insert contents</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab 2: Task File Upload -->
+            <div id="file-tab" class="tab-content">
+              <div class="file-uploader-box" id="file-uploader-box">
+                <span class="upload-icon">📄</span>
+                <h3>Drag & Drop Task File Here</h3>
+                <p class="upload-subtitle">Supports .txt, .md, .py, .json, .sh task manifests</p>
+                <input type="file" id="file-input" class="file-input" accept=".txt,.md,.py,.json,.sh" />
+                <button class="btn btn-secondary" onclick="document.getElementById('file-input').click()">
+                  Browse File
+                </button>
+                <div id="file-details" class="file-details hidden">
+                  <span id="file-name" class="file-name font-mono"></span>
+                  <span id="file-size" class="file-size badge"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab 3: Structured JSON / Manifest Input -->
+            <div id="json-tab" class="tab-content">
+              <textarea
+                id="json-input"
+                class="prompt-textarea font-mono"
+                rows="6"
+                placeholder='{&#10;  "prompt": "Step 1: Create helper.py\nStep 2: Add unit tests",&#10;  "allow": ["sandbox/*.py"]&#10;}'
+              ></textarea>
+            </div>
+
+            <div class="input-card-footer">
+              <div class="meta-hints">
+                <span class="shortcut-hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> to launch</span>
+                <span id="char-count" class="char-count">0 characters</span>
+              </div>
+              
+              <div class="action-buttons">
+                <button id="clear-prompt-btn" class="btn btn-ghost">Clear</button>
+                <button id="start-btn" class="btn btn-primary btn-lg">
+                  <span class="btn-icon">▶</span>
+                  <span class="btn-text">Start Task</span>
+                </button>
+                <button id="stop-btn" class="btn btn-danger btn-lg" disabled>
+                  <span class="btn-icon">⏹</span>
+                  <span class="btn-text">Abort Task</span>
+                </button>
+              </div>
+            </div>
+
           </div>
-        </div>
+        </section>
 
-        <div class="output-toolbar">
-          <label class="checkbox-label">
-            <input type="checkbox" id="autoscroll-toggle" checked />
-            <span>Auto-scroll</span>
-          </label>
-          <div class="toolbar-actions">
-            <button id="copy-btn" class="btn btn-ghost" title="Copy output">Copy</button>
-            <button id="clear-btn" class="btn btn-ghost" title="Clear output display">Clear</button>
+        <!-- Streaming Execution Output Card -->
+        <section class="card output-card">
+          <div class="card-header">
+            <div class="output-header-left">
+              <h2>Execution Stream & Logs</h2>
+              <div id="status-badge" class="status-badge status-idle">
+                <span class="status-dot"></span>
+                <span id="status-label">Idle</span>
+              </div>
+            </div>
+            
+            <div class="metadata-bar">
+              <span class="meta-item">Task ID: <strong id="meta-task-id" class="font-mono">—</strong></span>
+              <span class="meta-item">Elapsed: <strong id="meta-duration" class="font-mono">0.0s</strong></span>
+              <span class="meta-item">Exit Code: <strong id="meta-exit-code" class="font-mono">—</strong></span>
+            </div>
           </div>
-        </div>
 
-        <div class="terminal-wrapper">
-          <pre id="output-console" class="terminal-body"><code>Waiting for task to be initiated...</code></pre>
-        </div>
-      </section>
-    </main>
+          <div class="output-toolbar">
+            <label class="checkbox-control">
+              <input type="checkbox" id="autoscroll-toggle" checked />
+              <span>Auto-scroll terminal</span>
+            </label>
+            
+            <div class="toolbar-actions">
+              <button id="copy-btn" class="btn btn-ghost btn-sm" title="Copy Log">
+                <span>📋</span> Copy Output
+              </button>
+              <button id="download-btn" class="btn btn-ghost btn-sm" title="Download Log">
+                <span>💾</span> Download Log
+              </button>
+              <button id="clear-btn" class="btn btn-ghost btn-sm" title="Clear Console">
+                <span>🧹</span> Clear Console
+              </button>
+            </div>
+          </div>
 
-    <footer class="app-footer">
-      <span>AGY CLI Web Controller Scaffold &bull; Safe execution environment</span>
-      <span id="server-info" class="server-info">Target: workspace/</span>
-    </footer>
+          <div class="terminal-wrapper">
+            <pre id="output-console" class="terminal-body font-mono"><code>Waiting for AI task initiation...</code></pre>
+          </div>
+        </section>
+
+      </main>
+
+    </div>
   </div>
 
   <script src="/app.js"></script>

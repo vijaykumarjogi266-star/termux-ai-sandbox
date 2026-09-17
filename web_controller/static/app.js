@@ -1,47 +1,61 @@
 /**
- * AGY Web Controller Frontend
- * Handles task submission, polling output stream, and managing UI state.
+ * Antigravity AI Studio Frontend Controller
+ * Modern AI Application UI with Multi-format Inputs, File Drop, and Live Log Streaming
  */
 
 // DOM Elements
 const promptInput = document.getElementById("prompt-input");
+const jsonInput = document.getElementById("json-input");
+const fileInput = document.getElementById("file-input");
+const fileUploaderBox = document.getElementById("file-uploader-box");
+const dropZone = document.getElementById("drop-zone");
 const modelSelect = document.getElementById("model-select");
+const modeSelect = document.getElementById("mode-select");
+
 const startBtn = document.getElementById("start-btn");
 const stopBtn = document.getElementById("stop-btn");
+const clearPromptBtn = document.getElementById("clear-prompt-btn");
+
 const charCount = document.getElementById("char-count");
 const statusBadge = document.getElementById("status-badge");
 const statusLabel = document.getElementById("status-label");
+
 const metaTaskId = document.getElementById("meta-task-id");
 const metaDuration = document.getElementById("meta-duration");
 const metaExitCode = document.getElementById("meta-exit-code");
+
 const outputConsole = document.getElementById("output-console");
 const autoscrollToggle = document.getElementById("autoscroll-toggle");
-const clearBtn = document.getElementById("clear-btn");
 const copyBtn = document.getElementById("copy-btn");
+const downloadBtn = document.getElementById("download-btn");
+const clearBtn = document.getElementById("clear-btn");
+
 const connectionStatus = document.getElementById("connection-status");
 const connectionText = document.getElementById("connection-text");
-const serverInfo = document.getElementById("server-info");
+const themeToggle = document.getElementById("theme-toggle");
 
 // State
 let pollIntervalId = null;
 let currentOffset = 0;
 let isPolling = false;
+let activeTab = "prompt-tab";
 
-// Helpers
+// Helper: Connection State
 function setConnectionState(connected, message = "Connected") {
   if (connected) {
-    connectionStatus.className = "dot dot-green";
+    connectionStatus.className = "status-dot dot-green";
     connectionText.textContent = message;
   } else {
-    connectionStatus.className = "dot dot-red";
+    connectionStatus.className = "status-dot dot-red";
     connectionText.textContent = message;
   }
 }
 
+// Helper: Status Badge
 function updateStatusBadge(status) {
   const normStatus = (status || "idle").toLowerCase();
   statusBadge.className = `status-badge status-${normStatus}`;
-  statusLabel.textContent = normStatus.charAt(0).toUpperCase() + normStatus.slice(1);
+  statusLabel.textContent = normStatus.toUpperCase();
 }
 
 function scrollToBottomIfNeeded() {
@@ -55,20 +69,72 @@ function setActionButtonsRunning(running) {
     startBtn.disabled = true;
     stopBtn.disabled = false;
     promptInput.disabled = true;
+    jsonInput.disabled = true;
   } else {
     startBtn.disabled = false;
     stopBtn.disabled = true;
     promptInput.disabled = false;
+    jsonInput.disabled = false;
   }
 }
 
-// Prompt input character counter and shortcut
-promptInput.addEventListener("input", () => {
-  const length = promptInput.value.length;
-  charCount.textContent = `${length.toLocaleString()} characters`;
+// Theme Toggle
+themeToggle.addEventListener("click", () => {
+  const html = document.documentElement;
+  const currentTheme = html.getAttribute("data-theme");
+  const nextTheme = currentTheme === "light" ? "dark" : "light";
+  html.setAttribute("data-theme", nextTheme);
+  themeToggle.querySelector(".theme-icon").textContent = nextTheme === "light" ? "☀️" : "🌙";
 });
 
-promptInput.addEventListener("keydown", (e) => {
+// Tab Switching
+document.querySelectorAll(".tab-button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-button").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
+    
+    btn.classList.add("active");
+    activeTab = btn.getAttribute("data-tab");
+    document.getElementById(activeTab).classList.add("active");
+  });
+});
+
+// Preset Chips Handling
+document.querySelectorAll(".preset-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const promptText = chip.getAttribute("data-prompt");
+    promptInput.value = promptText;
+    updateCharCount();
+    
+    // Switch to Prompt Tab
+    document.querySelector('[data-tab="prompt-tab"]').click();
+    promptInput.focus();
+  });
+});
+
+// Character Counter
+function updateCharCount() {
+  const text = getActivePromptText();
+  charCount.textContent = `${text.length.toLocaleString()} characters`;
+}
+
+promptInput.addEventListener("input", updateCharCount);
+jsonInput.addEventListener("input", updateCharCount);
+
+function getActivePromptText() {
+  if (activeTab === "json-tab") {
+    try {
+      const parsed = JSON.parse(jsonInput.value.trim());
+      return parsed.prompt || jsonInput.value.trim();
+    } catch {
+      return jsonInput.value.trim();
+    }
+  }
+  return promptInput.value.trim();
+}
+
+// Keyboard Shortcut: Ctrl + Enter
+document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
     e.preventDefault();
     if (!startBtn.disabled) {
@@ -77,7 +143,62 @@ promptInput.addEventListener("keydown", (e) => {
   }
 });
 
-// Output toolbar actions
+// Drag and Drop File Handling
+if (dropZone) {
+  ["dragenter", "dragover"].forEach((eventName) => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      dropZone.classList.add("drag-over");
+    });
+  });
+
+  ["dragleave", "drop"].forEach((eventName) => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("drag-over");
+    });
+  });
+
+  dropZone.addEventListener("drop", (e) => {
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      readFileIntoPrompt(files[0]);
+    }
+  });
+}
+
+// File Input Picker
+fileInput.addEventListener("change", (e) => {
+  if (e.target.files.length > 0) {
+    readFileIntoPrompt(e.target.files[0]);
+  }
+});
+
+function readFileIntoPrompt(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    promptInput.value = e.target.result;
+    updateCharCount();
+    
+    // Update file details display
+    document.getElementById("file-name").textContent = file.name;
+    document.getElementById("file-size").textContent = `${(file.size / 1024).toFixed(1)} KB`;
+    document.getElementById("file-details").classList.remove("hidden");
+    
+    // Switch to prompt tab
+    document.querySelector('[data-tab="prompt-tab"]').click();
+  };
+  reader.readAsText(file);
+}
+
+// Clear Prompt
+clearPromptBtn.addEventListener("click", () => {
+  promptInput.value = "";
+  jsonInput.value = "";
+  updateCharCount();
+});
+
+// Console Action Toolbar
 clearBtn.addEventListener("click", () => {
   outputConsole.textContent = "";
 });
@@ -85,26 +206,36 @@ clearBtn.addEventListener("click", () => {
 copyBtn.addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(outputConsole.textContent);
-    const originalText = copyBtn.textContent;
-    copyBtn.textContent = "Copied!";
-    setTimeout(() => {
-      copyBtn.textContent = originalText;
-    }, 1500);
+    const origHTML = copyBtn.innerHTML;
+    copyBtn.innerHTML = "<span>✓</span> Copied!";
+    setTimeout(() => { copyBtn.innerHTML = origHTML; }, 1500);
   } catch (err) {
-    console.error("Clipboard copy failed:", err);
+    alert("Copy failed: " + err.message);
   }
 });
 
-// Polling status and incremental output
+downloadBtn.addEventListener("click", () => {
+  const text = outputConsole.textContent;
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `agy_execution_log_${Date.now()}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// Polling Status & Incremental Output
 async function pollTaskStatus() {
   if (isPolling) return;
   isPolling = true;
 
   try {
     const res = await fetch(`/api/task/status?offset=${currentOffset}`);
-    if (!res.ok) {
-      throw new Error(`Status check HTTP ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`Status check HTTP ${res.status}`);
+    
     const data = await res.json();
     setConnectionState(true, "Connected");
 
@@ -114,10 +245,8 @@ async function pollTaskStatus() {
       metaDuration.textContent = `${(data.duration || 0).toFixed(1)}s`;
       metaExitCode.textContent = data.exitCode !== null && data.exitCode !== undefined ? data.exitCode : "—";
 
-      // Append new output chunks
       if (data.output && data.output.length > 0) {
         if (currentOffset === 0) {
-          // Replace initial placeholder
           outputConsole.textContent = data.output;
         } else {
           outputConsole.textContent += data.output;
@@ -126,7 +255,6 @@ async function pollTaskStatus() {
         scrollToBottomIfNeeded();
       }
 
-      // Check if task finished
       if (data.status !== "running") {
         clearInterval(pollIntervalId);
         pollIntervalId = null;
@@ -137,7 +265,6 @@ async function pollTaskStatus() {
       setActionButtonsRunning(false);
     }
   } catch (err) {
-    console.error("Poll error:", err);
     setConnectionState(false, "Disconnected");
   } finally {
     isPolling = false;
@@ -150,22 +277,23 @@ function startPolling() {
   pollIntervalId = setInterval(pollTaskStatus, 400);
 }
 
-// Start Task
+// Start Task Execution
 async function startTask() {
-  const prompt = promptInput.value.trim();
+  const prompt = getActivePromptText();
   if (!prompt) {
-    alert("Please enter a prompt instruction.");
+    alert("Please enter a prompt instruction or upload a task file.");
     promptInput.focus();
     return;
   }
 
   const model = modelSelect.value || undefined;
+  const mode = modeSelect.value || undefined;
 
-  // Reset console & state
   currentOffset = 0;
-  outputConsole.textContent = `[Initiating task with AGY CLI...]\n`;
+  outputConsole.textContent = `[Initiating AI task execution with AGY CLI...]\n`;
   updateStatusBadge("running");
   setActionButtonsRunning(true);
+  
   metaTaskId.textContent = "starting...";
   metaDuration.textContent = "0.0s";
   metaExitCode.textContent = "—";
@@ -174,7 +302,7 @@ async function startTask() {
     const res = await fetch("/api/task", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: jsonPayload({ prompt, model }),
+      body: JSON.stringify({ prompt, model, mode }),
     });
 
     const data = await res.json();
@@ -194,7 +322,7 @@ async function startTask() {
   }
 }
 
-// Stop Task
+// Stop Task Execution
 async function stopTask() {
   stopBtn.disabled = true;
   try {
@@ -211,24 +339,16 @@ async function stopTask() {
   }
 }
 
-function jsonPayload(obj) {
-  return JSON.stringify(obj);
-}
-
 startBtn.addEventListener("click", startTask);
 stopBtn.addEventListener("click", stopTask);
 
-// Initial Health Check & state sync
+// Initial Health Check
 async function init() {
   try {
     const res = await fetch("/api/health");
     if (res.ok) {
       const data = await res.json();
       setConnectionState(true, "Connected");
-      if (data.workspace) {
-        serverInfo.textContent = `Workspace: ${data.workspace.split("/").pop()}/`;
-      }
-      // Check existing task status
       pollTaskStatus();
     } else {
       setConnectionState(false, "Server Error");
