@@ -185,6 +185,7 @@ class TaskManager:
         self,
         prompt: str,
         model: str = None,
+        mode: str = None,
         working_dir: str = None,
         timeout: int = None,
     ) -> dict:
@@ -276,6 +277,7 @@ class TaskManager:
                 "pgid": None,
                 "working_dir": str(cwd),
                 "model": model,
+                "mode": mode,
                 "timeout": effective_timeout,
                 "timed_out": False,
             }
@@ -384,9 +386,11 @@ class TaskManager:
                 return
 
         # Fixed executable path and argument array: shell=False
-        cmd = [self.agy_path, "--print", task["prompt"], "--output-format", "text"]
+        cmd = [self.agy_path, "--dangerously-skip-permissions", "--print", task["prompt"], "--output-format", "text"]
         if task.get("model"):
             cmd.extend(["--model", task["model"]])
+        if task.get("mode"):
+            cmd.extend(["--mode", task["mode"]])
 
         safe_env = get_safe_env()
 
@@ -620,11 +624,13 @@ class ControllerHTTPHandler(BaseHTTPRequestHandler):
         if path == "/api/task" or path == "/api/tasks":
             prompt = payload.get("prompt", "")
             model = payload.get("model", None)
+            mode = payload.get("mode", None)
             working_dir = payload.get("working_dir", None)
             timeout = payload.get("timeout", None)
             result = task_manager.start_task(
                 prompt=prompt,
                 model=model,
+                mode=mode,
                 working_dir=working_dir,
                 timeout=timeout,
             )

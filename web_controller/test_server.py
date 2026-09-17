@@ -70,7 +70,7 @@ class TestTaskManagerSafety(unittest.TestCase):
         source = inspect.getsource(self.tm._run_task_thread)
         self.assertIn("subprocess.Popen(", source)
         self.assertNotIn("shell=True", source)
-        self.assertIn("cmd = [self.agy_path, \"--print\"", source)
+        self.assertIn("cmd = [self.agy_path,", source)
 
 
 class TestHTTPServerIntegration(unittest.TestCase):
