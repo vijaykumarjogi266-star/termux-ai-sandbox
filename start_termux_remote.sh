@@ -27,8 +27,8 @@ echo ""
 echo -e "${CYAN}[1/3] Starting Local Web Controller in Termux on port ${PORT}...${NC}"
 pkill -f "server.py ${PORT}" 2>/dev/null || true
 
-nohup python3 "${WEB_DIR}/server.py" "${PORT}" "0.0.0.0" > /tmp/termux_web_server.log 2>&1 & disown
-sleep 2
+python3 -c "import subprocess; subprocess.Popen(['python3', '${WEB_DIR}/server.py', '${PORT}', '0.0.0.0'], start_new_session=True)"
+sleep 1
 
 if curl -s "http://127.0.0.1:${PORT}/api/health" | grep -q "ok"; then
     echo -e "${GREEN}[✓] Termux Web Controller active at:${NC}"
